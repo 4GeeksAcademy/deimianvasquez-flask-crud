@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, User, Favorite
 #from models import Person
 
 app = Flask(__name__)
@@ -38,12 +38,74 @@ def sitemap():
 
 @app.route('/user', methods=['GET'])
 def handle_hello():
+    users = User()
+    users = users.query.all()
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
+    # list comprahension
+    # body_response = [item.serialize() for item in users]
 
-    return jsonify(response_body), 200
+    # for normal de python
+    # for item in users:
+    #     body_response.append(item.serialize())
+
+    # usando el metodo map
+    # users = list(map(lambda item: item.serialize(), users))
+
+    return jsonify([item.serialize() for item in users]), 200
+
+
+@app.route("/user/<int:theid>", methods=["GET"])
+def get_one_user(theid=None):
+    
+    if theid is not None:
+        user = User()
+        user = user.query.get(theid)
+
+        if user is not None:
+            return jsonify(user.serialize()), 200
+        else:
+            return jsonify({"message":"user not found"}), 404
+
+
+
+
+@app.route('/user', methods=["POST"])
+def add_user():
+    data = request.json
+
+    if data.get("name") is None:
+        return jsonify({"message": "wrong properties"}), 400
+    if data.get("lastname") is None:
+        return jsonify({"message": "wrong properties"}), 400
+    if data.get("email") is None:
+        return jsonify({"message": "wrong properties"}), 400
+    
+    # validar si ese email ya esta registrado
+    user = User()
+    user_email = user.query.filter_by(email=data["email"]).first()
+
+
+    if user_email is None:
+        user = User(lastname=data["lastname"], email=data["email"], name=data["name"])
+        db.session.add(user)
+        try:
+            db.session.commit()
+            return jsonify({"message":"user save successfull"}), 201
+        except Exception as error:
+            print(error)
+            db.session.rollback()
+            return jsonify({"message":f"error {error.args}"}), 500
+    else:
+        return jsonify({"message":"user exists"}), 400
+
+
+
+    
+
+
+    
+
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
