@@ -2,6 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
+import re
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_swagger import swagger
@@ -54,19 +55,23 @@ def handle_hello():
     return jsonify([item.serialize() for item in users]), 200
 
 
+
 @app.route("/user/<int:theid>", methods=["GET"])
 def get_one_user(theid=None):
     
     if theid is not None:
-        user = User()
+        user = User() # instanciando la clase
         user = user.query.get(theid)
 
-        if user is not None:
-            return jsonify(user.serialize()), 200
-        else:
-            return jsonify({"message":"user not found"}), 404
+        try:
 
-
+            if user is not None:
+                return jsonify(user.serialize()), 200
+            else:
+                return jsonify({"message":"user not found"}), 404
+        except Exception as error:
+            print(error)
+            return jsonify({"message":"Error al traer el usuario, si perciste consulte al administrador del sistema"}), 500
 
 
 @app.route('/user', methods=["POST"])
@@ -100,10 +105,83 @@ def add_user():
 
 
 
-    
+@app.route("/user/<int:theid>", methods=["PUT"])
+def update_user(theid=None):
+    if theid is None:
+        return jsonify({"message":"wrong error"}), 400
+
+    data = request.json
 
 
+    if data.get("name") is None:
+        return jsonify({"message":"wrong error"}), 400
     
+    if data.get("lastname") is None:
+        return jsonify({"message":"wrong error"}), 400
+    
+    if data.get("email") is None:
+        return jsonify({"message":"wrong error"}), 400
+    
+   
+    if len(data["name"].strip()) < 3:
+        return jsonify({"message":"El name debe tener al menos 3 caracteres"}), 400
+
+    if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',data.get("email").lower()): 
+        return jsonify({"message":"El correo electronico no tiene un formato correcto"}), 400
+    
+
+    ## buscar el usuario en la base de datos
+    user = User() # instanciamos la clase
+    user_update = user.query.get(theid)
+    
+    if user_update is None:
+        return jsonify({"message":"Not found"}), 404
+    
+    else:
+        user_update.name = data["name"]
+        user_update.lastname = data.get("lastname")
+        user_update.email = data["email"]
+
+        try:
+            db.session.commit()
+            return jsonify({"message":"user updated success"}), 201
+        except Exception as error:
+            print(error.args)
+            return jsonify({"message":"Error al traer el usuario, si perciste consulte al administrador del sistema"}), 500
+
+
+
+@app.route("/user/<int:theid>", methods=["DELETE"])
+def delete_user(theid=None):
+    
+    user = User()
+    user = user.query.get(theid)
+
+    if user is None:
+        return jsonify({"message":"user not found"}), 404
+    else:
+        db.session.delete(user)
+
+        try:
+            db.session.commit()
+            return jsonify([]), 204
+        except Exception as error:
+            return jsonify({"message":"error al eliminar el usuario"})
+
+
+@app.route("/user", methods=["DELETE"])
+def delete_all_users():
+    user = User().query.all()
+
+    for item in user:
+        db.session.delete(item)
+        
+    try:
+        db.session.commit()
+        return jsonify([]), 204
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({"message":"error al eliminar el usuario"})
 
 
 
